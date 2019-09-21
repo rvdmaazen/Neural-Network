@@ -2,7 +2,7 @@ import numpy as np
 
 
 class NeuralNetwork:
-    def __init__(self, layers=None, inputs=None):
+    def __init__(self, layers=None, inputs=None, outputs=None):
         """
         Initializes the neural network using random weights and biases.
         Weights are intialized using Xavier initialization.
@@ -18,6 +18,8 @@ class NeuralNetwork:
         self.weights = None
         self.biases = None
         self.inputs = np.array(inputs, ndmin=2)
+        self.outputs = np.array(outputs, ndmin=2)
+        self.n_layers = len(layers)
 
         # Check for valid input dimensions
         input_dimensions = self.inputs.shape
@@ -26,9 +28,16 @@ class NeuralNetwork:
             self.inputs = np.array(inputs).reshape((-1, layers[0]))
             print(f"Input shape was {input_dimensions}, reshaped to {self.inputs.shape}")
 
+        # Check for valid input dimensions
+        output_dimensions = self.outputs.shape
+        if output_dimensions[1] != layers[-1]:
+            print("Incorrect output dimensions for the specified network architecture")
+            self.outputs = np.array(outputs).reshape((-1, layers[-1]))
+            print(f"Output shape was {output_dimensions}, reshaped to {self.outputs.shape}")
+
         if layers:
             self.weights = []
-            for index, layer in enumerate(layers[1:]):
+            for index, layer in enumerate(layers[:-1]):
                 # Initialize weights using Xavier initialization
                 self.weights.append(
                     np.random.normal(
@@ -38,17 +47,26 @@ class NeuralNetwork:
                     )
                 )
             # Initialize biases to zero
-            self.biases = np.zeros(len(layers) - 1)
+            self.biases = np.zeros((len(layers) - 1, 1))
 
     def feed_forward(self):
-        output = self.inputs
-        for i, W in enumerate(self.weights):
-            output = self.sigmoid(np.dot(output, W) + self.biases[i])
-        self.output = output
+        """
+        Feed forward the inputs through the different layers
+        of the neural network.
+
+        Returns
+        -------
+            Activations for each layer, including the input values
+        """
+        activations = [self.inputs]
+        # Store all zs and activations
+        for W, b in zip(self.weights, self.biases):
+            activations.append(self.sigmoid(np.dot(activations[-1], W) + b))
+        return activations
 
     def sigmoid(self, x):
         """
-        Sigmoid activation function
+        Sigmoid activation function.
 
         Parameters
         ----------
@@ -57,13 +75,135 @@ class NeuralNetwork:
 
         Returns
         -------
-        y: int, list, numpy array
+            Sigmoid of the input value(s)
         """
         return 1 / (1 + np.exp(-x))
 
+    def sigmoid_derivative(self, x):
+        """
+        Returns the derivative of the sigmoid function (da/dz).
+
+        Parameters
+        ----------
+        x: int, list, numpy array
+            Input value(s) for the sigmoid derivative
+
+        Returns
+        -------
+            Sigmoid derivative of the input value(s)
+        """
+        return self.sigmoid(x) * (1 - self.sigmoid(x))
+
+    def cost_function(self, y_hat, y):
+        """
+        Returns the cost using the squared error as the cost function.
+
+        Parameters
+        ----------
+        y_hat: int, list, numpy array
+            Output value(s) as predicted by the neural network
+        y: int, list, numpy array
+            Actual output value(s)
+
+        Returns
+        -------
+            Squared error of the prediction
+        -------
+        """
+        return (y_hat - y) ** 2
+
+    def cost_derivative(self, y_hat, y):
+        """
+        Returns the derivative of the squared error cost function.
+
+        Parameters
+        ----------
+        y_hat: int, list, numpy array
+            Output value(s) as predicted by the neural network
+        y: int, list, numpy array
+            Actual output value(s)
+
+        Returns
+        -------
+            Derivative of the cost function
+        """
+        return 2 * (y_hat - y)
+
+    def back_propagation(self):
+        """
+        Returns the weights and biases gradients with respect
+        to the cost function (dC/dW).
+
+        Returns
+        -------
+        dCdW: Weight gradients
+        dCdb: Bias gradients
+        """
+        zs = []
+        activations = [self.inputs]
+        # Store all zs and activations
+        for W, b in zip(self.weights, self.biases):
+            zs.append(np.dot(activations[-1], W) + b)
+            activations.append(self.sigmoid(zs[-1]))
+        prediction = activations[-1]
+        dCdW = [np.zeros(w.shape) for w in self.weights]
+        dCdb = [np.zeros(b.shape) for b in self.biases]
+        dCdW[-1] = self.sigmoid_derivative(prediction) * self.cost_derivative(
+            prediction, self.outputs
+        )
+
+        # Back propagate the hidden layers
+        for i in range(1, self.n_layers):
+            delta = self.sigmoid_derivative(zs[-i]) * self.cost_derivative(prediction, self.outputs)
+            dCdW[-i] = np.dot(activations[-i - 1].transpose(), delta)
+            dCdb[-i] = np.sum(1 * delta)
+        return dCdW, dCdb
+
+    def gradient_descent(self, epochs, eta=0.01):
+        """
+        Updates weights and biases using gradient descent
+
+        Parameters:
+        epochs: int
+            Number of epochs to train the network for
+        eta: int, float
+            Learning rate of the neural network
+        """
+        for epoch in range(1, epochs + 1):
+            gradient_weights, gradient_biases = self.back_propagation()
+            for W, b, dW, db in zip(self.weights, self.biases, gradient_weights, gradient_biases):
+                W += -eta * dW
+                b += -eta * db
+            if epoch % 100 == 0:
+                print(f"Current epoch: {epoch}")
+                print(
+                    f"Current loss: {self.cost_function(self.feed_forward()[-1], self.outputs).mean()}"
+                )
+
 
 if __name__ == "__main__":
-    layers = [2, 4, 2]
-    inputs = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]
-    nn = NeuralNetwork(layers=layers, inputs=inputs)
-    nn.feed_forward()
+
+    # Create data using the sigmoid function
+    n_observations = 1000
+    n_features = 2
+    np.random.seed(seed=1)
+    x = np.random.random((n_observations, n_features))
+    y = 1 / (
+        1
+        + np.exp(
+            # Multiply inputs with specified weights
+            -np.dot(x, np.array([[-1, 2]]).transpose())
+            # Add noise
+            + np.random.normal(size=(n_observations, 1)) / 100
+            # Add bias
+            + 0.4
+        )
+    )
+
+    # Train network
+    layers = [2, 1]
+    nn = NeuralNetwork(layers=layers, inputs=x, outputs=y)
+    nn.gradient_descent(epochs=2000, eta=0.01)
+    # See trained weights and biases
+    print(nn.weights)
+    print(nn.biases)
