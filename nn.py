@@ -2,7 +2,7 @@ import numpy as np
 
 
 class NeuralNetwork:
-    def __init__(self, layers=None, inputs=None, outputs=None):
+    def __init__(self, layers, inputs, outputs, epochs, eta=0.01, batch_size=64):
         """
         Initializes the neural network using random weights and biases.
         Weights are intialized using Xavier initialization.
@@ -10,16 +10,27 @@ class NeuralNetwork:
 
         Parameters
         ----------
-        layers: list
+        layers: list, numpy array
             Number of neurons in each layer, including input and output layers
-        inputs: list
+        inputs: list, numpy array
             Inputs to train the network on
+        outputs: list, numpy array
+            Outputs/labels to train the network on
+        epochs: int
+            Number of epochs to train the network for
+        eta: float
+            Learning rate of the neural network
+        batch_size: int
+            Number of training examples used to update weights
         """
         self.weights = None
         self.biases = None
         self.inputs = np.array(inputs, ndmin=2)
         self.outputs = np.array(outputs, ndmin=2)
         self.n_layers = len(layers)
+        self.epochs = epochs
+        self.eta = eta
+        self.batch_size = batch_size
 
         # Check for valid input dimensions
         input_dimensions = self.inputs.shape
@@ -129,7 +140,7 @@ class NeuralNetwork:
         """
         return 2 * (y_hat - y)
 
-    def back_propagation(self):
+    def back_propagation(self, inputs, outputs):
         """
         Returns the weights and biases gradients with respect
         to the cost function (dC/dW).
@@ -140,7 +151,7 @@ class NeuralNetwork:
         dCdb: Bias gradients
         """
         zs = []
-        activations = [self.inputs]
+        activations = [inputs]
         # Store all zs and activations
         for W, b in zip(self.weights, self.biases):
             zs.append(np.dot(activations[-1], W) + b)
@@ -148,43 +159,45 @@ class NeuralNetwork:
         prediction = activations[-1]
         dCdW = [np.zeros(w.shape) for w in self.weights]
         dCdb = [np.zeros(b.shape) for b in self.biases]
-        dCdW[-1] = self.sigmoid_derivative(prediction) * self.cost_derivative(
-            prediction, self.outputs
-        )
+        dCdW[-1] = self.sigmoid_derivative(prediction) * self.cost_derivative(prediction, outputs)
 
         # Back propagate the hidden layers
         for i in range(1, self.n_layers):
-            delta = self.sigmoid_derivative(zs[-i]) * self.cost_derivative(prediction, self.outputs)
+            delta = self.sigmoid_derivative(zs[-i]) * self.cost_derivative(prediction, outputs)
             dCdW[-i] = np.dot(activations[-i - 1].transpose(), delta)
             dCdb[-i] = np.sum(1 * delta)
         return dCdW, dCdb
 
-    def gradient_descent(self, epochs, eta=0.01):
+    def gradient_descent(self, inputs, outputs, eta):
         """
         Updates weights and biases using gradient descent
-
-        Parameters:
-        epochs: int
-            Number of epochs to train the network for
-        eta: int, float
-            Learning rate of the neural network
         """
-        for epoch in range(1, epochs + 1):
-            gradient_weights, gradient_biases = self.back_propagation()
-            for W, b, dW, db in zip(self.weights, self.biases, gradient_weights, gradient_biases):
-                W += -eta * dW
-                b += -eta * db
+        gradient_weights, gradient_biases = self.back_propagation(inputs, outputs)
+        for W, b, dW, db in zip(self.weights, self.biases, gradient_weights, gradient_biases):
+            W += -eta * dW
+            b += -eta * db
+
+    def train(self):
+        for epoch in range(1, self.epochs + 1):
+            # Combine input and output data
+            data = np.concatenate((self.inputs, self.outputs), axis=1)
+            # Randomly shuffle data
+            np.random.shuffle(data)
+            for i in range(0, data.shape[0], self.batch_size):
+                batch = data[i:i + self.batch_size]
+                inputs, outputs = batch[:, :-layers[-1]], batch[:, -layers[-1]:]
+                self.gradient_descent(inputs, outputs, self.eta)
+
             if epoch % 100 == 0:
-                print(f"Current epoch: {epoch}")
                 print(
-                    f"Current loss: {self.cost_function(self.feed_forward()[-1], self.outputs).mean()}"
+                    f"Epoch {epoch}, loss: {self.cost_function(self.feed_forward()[-1], self.outputs).mean()}"
                 )
 
 
 if __name__ == "__main__":
 
     # Create data using the sigmoid function
-    n_observations = 1000
+    n_observations = 100
     n_features = 2
     np.random.seed(seed=1)
     x = np.random.random((n_observations, n_features))
@@ -192,18 +205,20 @@ if __name__ == "__main__":
         1
         + np.exp(
             # Multiply inputs with specified weights
-            -np.dot(x, np.array([[-1, 2]]).transpose())
-            # Add noise
-            + np.random.normal(size=(n_observations, 1)) / 100
-            # Add bias
-            + 0.4
+            -(
+                np.dot(x, np.array([[-1, 2]]).transpose())
+                # Add noise
+                + np.random.normal(size=(n_observations, 1)) / 100
+                # Add bias
+                - 0.8
+            )
         )
     )
 
     # Train network
     layers = [2, 1]
-    nn = NeuralNetwork(layers=layers, inputs=x, outputs=y)
-    nn.gradient_descent(epochs=2000, eta=0.01)
+    nn = NeuralNetwork(layers=layers, inputs=x, outputs=y, epochs=1000, eta=0.1)
+    nn.train()
     # See trained weights and biases
     print(nn.weights)
     print(nn.biases)
