@@ -170,7 +170,7 @@ class NeuralNetwork:
 
     def gradient_descent(self, inputs, outputs, eta):
         """
-        Updates weights and biases using gradient descent
+        Updates weights and biases using gradient descent.
         """
         gradient_weights, gradient_biases = self.back_propagation(inputs, outputs)
         for W, b, dW, db in zip(self.weights, self.biases, gradient_weights, gradient_biases):
@@ -184,14 +184,29 @@ class NeuralNetwork:
             # Randomly shuffle data
             np.random.shuffle(data)
             for i in range(0, data.shape[0], self.batch_size):
-                batch = data[i:i + self.batch_size]
-                inputs, outputs = batch[:, :-layers[-1]], batch[:, -layers[-1]:]
+                batch = data[i : i + self.batch_size]
+                inputs, outputs = batch[:, : -layers[-1]], batch[:, -layers[-1] :]
                 self.gradient_descent(inputs, outputs, self.eta)
 
             if epoch % 100 == 0:
                 print(
                     f"Epoch {epoch}, loss: {self.cost_function(self.feed_forward()[-1], self.outputs).mean()}"
                 )
+
+    def predict(self, inputs):
+        """
+        Predict label(s) for given inputs.
+
+        Parameters
+        ----------
+        inputs: int, list, numpy array
+            Inputs to use for the prediction
+        """
+        activations = [self.inputs]
+        # Store all zs and activations
+        for W, b in zip(self.weights, self.biases):
+            activations.append(self.sigmoid(np.dot(activations[-1], W) + b))
+        return activations[-1]
 
 
 if __name__ == "__main__":
