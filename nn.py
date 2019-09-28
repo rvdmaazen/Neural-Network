@@ -29,18 +29,18 @@ class ELU:
     def __init__(self, alpha=0.01):
         self.alpha = alpha
 
-    def function(x):
+    def function(self, x):
         return np.where(x < 0, self.alpha * (np.exp(x) - 1), x)
 
-    def derivative(x):
+    def derivative(self, x):
         return np.where(x < 0, self.function(x) + self.alpha, 1)
 
 
 class LeakyReLU:
-    def function(x):
+    def function(self, x):
         return np.where(x < 0, 0.01 * x, x)
 
-    def derivative(x):
+    def derivative(self, x):
         return np.where(x < 0, 0.01, 1)
 
 
