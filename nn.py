@@ -70,6 +70,8 @@ class NeuralNetwork:
             Outputs/labels to train the network on
         epochs: int
             Number of epochs to train the network for
+        activations: list
+            Activation functions to use
         eta: float
             Learning rate of the neural network
         batch_size: int
@@ -84,6 +86,7 @@ class NeuralNetwork:
         self.epochs = epochs
         self.eta = eta
         self.batch_size = batch_size
+        self.activation_types = activations
 
         # Check for valid input dimensions
         input_dimensions = self.inputs.shape
@@ -113,6 +116,18 @@ class NeuralNetwork:
             # Initialize biases to zero
             self.biases = np.zeros((len(layers) - 1, 1))
 
+        # Check for correct number of activation functions
+        if len(activations) != self.n_layers - 1:
+            raise ValueError(
+                f"Incorrect number of activation functions specficied: expected {self.n_layers - 1}, got {len(activations)}"
+            )
+
+        # Check for valid activation functions
+        for activation in activations:
+            if activation not in ACTIVATION_FUNCTIONS:
+                raise ValueError(f"Unknown activation function {activation}")
+        self.activations = [ACTIVATION_FUNCTIONS[activation]() for activation in self.activation_types]
+
     def feed_forward(self):
         """
         Feed forward the inputs through the different layers
@@ -124,39 +139,43 @@ class NeuralNetwork:
         """
         activations = [self.inputs]
         # Store all zs and activations
-        for W, b in zip(self.weights, self.biases):
-            activations.append(self.sigmoid(np.dot(activations[-1], W) + b))
+        for W, b, activation_type in zip(self.weights, self.biases, self.activations):
+            activations.append(self.activation_function(np.dot(activations[-1], W) + b, activation_type))
         return activations
 
-    def sigmoid(self, x):
+    def activation_function(self, x, activation):
         """
-        Sigmoid activation function.
+        Returns the activations calculated using the specified activation function.
 
         Parameters
         ----------
         x: int, list, numpy array
-            Input value(s) for the sigmoid function
+            Input value(s) for the activation function
+        activation: class
+            Activation class to use
 
         Returns
         -------
-            Sigmoid of the input value(s)
+            Activation of the input value(s)
         """
-        return 1 / (1 + np.exp(-x))
+        return activation.function(x)
 
-    def sigmoid_derivative(self, x):
+    def activation_derivative(self, x, activation):
         """
-        Returns the derivative of the sigmoid function (da/dz).
+        Returns the derivative of the specified activation function (da/dz).
 
         Parameters
         ----------
         x: int, list, numpy array
-            Input value(s) for the sigmoid derivative
+            Input value(s) for the activation derivative
+        activation: class
+            Activation class to use
 
         Returns
         -------
-            Sigmoid derivative of the input value(s)
+            Activation derivative of the input value(s)
         """
-        return self.sigmoid(x) * (1 - self.sigmoid(x))
+        return activation.derivative(x)
 
     def cost_function(self, y_hat, y):
         """
@@ -206,17 +225,17 @@ class NeuralNetwork:
         zs = []
         activations = [inputs]
         # Store all zs and activations
-        for W, b in zip(self.weights, self.biases):
+        for W, b, activation_type in zip(self.weights, self.biases, self.activations):
             zs.append(np.dot(activations[-1], W) + b)
-            activations.append(self.sigmoid(zs[-1]))
+            activations.append(self.activation_function(zs[-1], activation_type))
         prediction = activations[-1]
         dCdW = [np.zeros(w.shape) for w in self.weights]
         dCdb = [np.zeros(b.shape) for b in self.biases]
-        dCdW[-1] = self.sigmoid_derivative(prediction) * self.cost_derivative(prediction, outputs)
+        dCdW[-1] = self.activation_derivative(prediction, self.activations[-1]) * self.cost_derivative(prediction, outputs)
 
         # Back propagate the hidden layers
         for i in range(1, self.n_layers):
-            delta = self.sigmoid_derivative(zs[-i]) * self.cost_derivative(prediction, outputs)
+            delta = self.activation_derivative(zs[-i], self.activations[-1]) * self.cost_derivative(prediction, outputs)
             dCdW[-i] = np.dot(activations[-i - 1].transpose(), delta)
             dCdb[-i] = np.sum(1 * delta)
         return dCdW, dCdb
@@ -245,11 +264,9 @@ class NeuralNetwork:
             loss = self.cost_function(self.feed_forward()[-1], self.outputs).mean()
 
             if epoch % 100 == 0:
-                print(
-                    f"Epoch: {epoch} - loss: {loss}"
-                )
+                print(f"Epoch: {epoch} - loss: {loss}")
 
-            if (callback is not None):
+            if callback is not None:
                 callback(self, epoch, loss)
 
     def predict(self, inputs):
@@ -263,8 +280,8 @@ class NeuralNetwork:
         """
         activations = [inputs]
         # Store all zs and activations
-        for W, b in zip(self.weights, self.biases):
-            activations.append(self.sigmoid(np.dot(activations[-1], W) + b))
+        for W, b, activation_type in zip(self.weights, self.biases, self.activations):
+            activations.append(self.activation_function(np.dot(activations[-1], W) + b, activation_type))
         return activations[-1]
 
 
