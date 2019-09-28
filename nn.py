@@ -202,7 +202,7 @@ class NeuralNetwork:
         inputs: int, list, numpy array
             Inputs to use for the prediction
         """
-        activations = [self.inputs]
+        activations = [inputs]
         # Store all zs and activations
         for W, b in zip(self.weights, self.biases):
             activations.append(self.sigmoid(np.dot(activations[-1], W) + b))
