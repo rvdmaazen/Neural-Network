@@ -27,7 +27,8 @@ class NeuralNetwork:
         self.biases = None
         self.inputs = np.array(inputs, ndmin=2)
         self.outputs = np.array(outputs, ndmin=2)
-        self.n_layers = len(layers)
+        self.layers = layers
+        self.n_layers = len(self.layers)
         self.epochs = epochs
         self.eta = eta
         self.batch_size = batch_size
@@ -177,7 +178,7 @@ class NeuralNetwork:
             W += -eta * dW
             b += -eta * db
 
-    def train(self):
+    def train(self, callback=None):
         for epoch in range(1, self.epochs + 1):
             # Combine input and output data
             data = np.concatenate((self.inputs, self.outputs), axis=1)
@@ -185,13 +186,19 @@ class NeuralNetwork:
             np.random.shuffle(data)
             for i in range(0, data.shape[0], self.batch_size):
                 batch = data[i : i + self.batch_size]
-                inputs, outputs = batch[:, : -layers[-1]], batch[:, -layers[-1] :]
+                inputs, outputs = batch[:, : -self.layers[-1]], batch[:, -self.layers[-1] :]
                 self.gradient_descent(inputs, outputs, self.eta)
+
+            # Calculate loss
+            loss = self.cost_function(self.feed_forward()[-1], self.outputs).mean()
 
             if epoch % 100 == 0:
                 print(
-                    f"Epoch {epoch}, loss: {self.cost_function(self.feed_forward()[-1], self.outputs).mean()}"
+                    f"Epoch: {epoch} - loss: {loss}"
                 )
+
+            if (callback is not None):
+                callback(self, epoch, loss)
 
     def predict(self, inputs):
         """
