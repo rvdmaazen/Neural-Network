@@ -103,6 +103,7 @@ class NeuralNetwork:
             print(f"Output shape was {output_dimensions}, reshaped to {self.outputs.shape}")
 
         if layers:
+            self.biases = []
             self.weights = []
             for index, layer in enumerate(layers[:-1]):
                 # Initialize weights using Xavier initialization
@@ -110,11 +111,11 @@ class NeuralNetwork:
                     np.random.normal(
                         loc=0,
                         scale=np.sqrt(2 / (layers[index] + layers[index + 1])),
-                        size=(layers[index], layers[index + 1]),
-                    )
+                        size=(layers[index + 1], layers[index])
+                    ).T
                 )
-            # Initialize biases to zero
-            self.biases = np.zeros((len(layers) - 1, 1))
+                # Initialize biases to zero
+                self.biases.append(np.zeros((layers[index + 1], 1)).T) 
 
         # Check for correct number of activation functions
         if len(activations) != self.n_layers - 1:
