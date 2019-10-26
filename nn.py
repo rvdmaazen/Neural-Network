@@ -250,7 +250,7 @@ class NeuralNetwork:
             if epoch % 100 == 0:
                 print(f"Epoch: {epoch} - loss: {loss}")
 
-            if callback is not None and self.epochs == epoch: #epoch % 5 == 0:
+            if callback is not None and epoch % 5 == 0:
                 callback(self, epoch, loss)
 
     def predict(self, inputs):
