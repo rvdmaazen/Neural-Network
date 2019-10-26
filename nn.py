@@ -219,30 +219,48 @@ class NeuralNetwork:
 
         Returns
         -------
-        dCdW: Weight gradients
-        dCdb: Bias gradients
+        dCdW: numpy array
+            Weight gradients
+        dCdb: numpy array
+            Bias gradients
         """
+        m = self.inputs.shape[0]
         zs = []
         activations = [inputs]
-        # Store all zs and activations
+        # Store all zs and activations based on old weights and biases
         for W, b, activation_type in zip(self.weights, self.biases, self.activations):
             zs.append(np.dot(activations[-1], W) + b)
             activations.append(self.activation_function(zs[-1], activation_type))
-        prediction = activations[-1]
+
+        # Create empty arrays for weight and bias gradients
         dCdW = [np.zeros(w.shape) for w in self.weights]
         dCdb = [np.zeros(b.shape) for b in self.biases]
-        dCdW[-1] = self.activation_derivative(prediction, self.activations[-1]) * self.cost_derivative(prediction, outputs)
+
+        # Back propagate the output layer
+        delta = self.activation_derivative(zs[-1], self.activations[-1]) * self.cost_derivative(activations[-1], outputs)
+        dCdW[-1] = np.dot(activations[-2].T, delta) / m
+        dCdb[-1] = np.sum(1 * delta, axis=0) / m
 
         # Back propagate the hidden layers
-        for i in range(1, self.n_layers):
-            delta = self.activation_derivative(zs[-i], self.activations[-1]) * self.cost_derivative(prediction, outputs)
-            dCdW[-i] = np.dot(activations[-i - 1].transpose(), delta)
-            dCdb[-i] = np.sum(1 * delta)
+        for i in range(2, self.n_layers):
+            delta = np.dot(delta, self.weights[-i + 1].T) * self.activation_derivative(zs[-i], self.activations[-i])
+            dCdW[-i] = np.dot(activations[-i-1].T, delta) / m
+            dCdb[-i] = np.sum(1 * delta, axis=0) / m
+
         return dCdW, dCdb
 
     def gradient_descent(self, inputs, outputs, eta):
         """
         Updates weights and biases using gradient descent.
+
+        Parameters
+        ----------
+        inputs: numpy array
+            Input values
+        outputs: numpy array
+            Outputs values
+        eta: float
+            Learning rate to use for gradient descent
         """
         gradient_weights, gradient_biases = self.back_propagation(inputs, outputs)
         for W, b, dW, db in zip(self.weights, self.biases, gradient_weights, gradient_biases):
