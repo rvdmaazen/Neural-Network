@@ -126,7 +126,7 @@ class NeuralNetwork:
         # Check for valid activation functions
         for activation in activations:
             if activation not in ACTIVATION_FUNCTIONS:
-                raise ValueError(f"Unknown activation function {activation}")
+                raise Exception(f"Unknown activation function {activation}")
         self.activations = [ACTIVATION_FUNCTIONS[activation]() for activation in self.activation_types]
 
     def feed_forward(self):
@@ -180,7 +180,7 @@ class NeuralNetwork:
 
     def cost_function(self, y_hat, y):
         """
-        Returns the cost using the squared error as the cost function.
+        Returns the cost using the squared error as the cost function (dC/da).
 
         Parameters
         ----------
@@ -192,9 +192,8 @@ class NeuralNetwork:
         Returns
         -------
             Squared error of the prediction
-        -------
         """
-        return (y_hat - y) ** 2
+        return np.sum((y_hat - y) ** 2, axis=1)
 
     def cost_derivative(self, y_hat, y):
         """
@@ -269,23 +268,33 @@ class NeuralNetwork:
             b += -eta * db
 
     def train(self, callback=None):
+        """
+        Train the neural network.
+
+        Parameters
+        ----------
+        callback: function
+            Function to run after every fifth epoch
+        """
+        loss = self.cost_function(self.feed_forward()[-1], self.outputs).mean()
+        print(f"Epoch 0, loss: {loss}")
         for epoch in range(1, self.epochs + 1):
             # Combine input and output data
             data = np.concatenate((self.inputs, self.outputs), axis=1)
             # Randomly shuffle data
             np.random.shuffle(data)
             for i in range(0, data.shape[0], self.batch_size):
-                batch = data[i : i + self.batch_size]
-                inputs, outputs = batch[:, : -self.layers[-1]], batch[:, -self.layers[-1] :]
+                batch = data[i:i + self.batch_size]
+                inputs, outputs = batch[:, : -self.layers[-1]], batch[:, -self.layers[-1]:]
                 self.gradient_descent(inputs, outputs, self.eta)
 
             # Calculate loss
-            loss = self.cost_function(self.feed_forward()[-1], self.outputs).mean()
+            loss = np.mean(self.cost_function(self.feed_forward()[-1], self.outputs), axis=0)
 
             if epoch % 100 == 0:
                 print(f"Epoch: {epoch} - loss: {loss}")
 
-            if callback is not None:
+            if callback is not None and epoch % 5 == 0:
                 callback(self, epoch, loss)
 
     def predict(self, inputs):
@@ -302,33 +311,3 @@ class NeuralNetwork:
         for W, b, activation_type in zip(self.weights, self.biases, self.activations):
             activations.append(self.activation_function(np.dot(activations[-1], W) + b, activation_type))
         return activations[-1]
-
-
-if __name__ == "__main__":
-
-    # Create data using the sigmoid function
-    n_observations = 100
-    n_features = 2
-    np.random.seed(seed=1)
-    x = np.random.random((n_observations, n_features))
-    y = 1 / (
-        1
-        + np.exp(
-            # Multiply inputs with specified weights
-            -(
-                np.dot(x, np.array([[-1, 2]]).transpose())
-                # Add noise
-                + np.random.normal(size=(n_observations, 1)) / 100
-                # Add bias
-                - 0.8
-            )
-        )
-    )
-
-    # Train network
-    layers = [2, 1]
-    nn = NeuralNetwork(layers=layers, inputs=x, outputs=y, epochs=1000, eta=0.1)
-    nn.train()
-    # See trained weights and biases
-    print(nn.weights)
-    print(nn.biases)
