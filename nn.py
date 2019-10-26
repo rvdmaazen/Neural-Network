@@ -53,8 +53,39 @@ ACTIVATION_FUNCTIONS = {
 }
 
 
+class MeanSquaredError:
+    def loss(self, y_hat, y):
+        return np.sum((y_hat - y) ** 2, axis=1, keepdims=True)
+
+    def derivative(self, y_hat, y):
+        return np.sum(2 * (y_hat - y), axis=1, keepdims=True)
+
+
+class MeanAbsoluteError:
+    def loss(self, y_hat, y):
+        return np.sum(np.absolute(y_hat - y), axis=1, keepdims=True)
+
+    def derivative(self, y_hat, y):
+        return np.sum(np.where(y_hat > y, 1, -1), axis=1, keepdims=True)
+
+
+class CrossEntropy:
+    def loss(self, y_hat, y):
+        return -np.sum(y * np.log(y_hat), axis=1, keepdims=True)
+
+    def derivative(self, y_hat, y):
+        return -np.sum(y / y_hat - ((1 - y) / (1 - y_hat)), axis=1, keepdims=True)
+
+
+LOSS_FUNCTIONS = {
+    "mean_squared_error": MeanSquaredError,
+    "mean_absolute_error": MeanAbsoluteError,
+    "cross_entropy": CrossEntropy
+}
+
+
 class NeuralNetwork:
-    def __init__(self, layers, inputs, outputs, epochs, activations, eta=0.01, batch_size=64):
+    def __init__(self, layers, inputs, outputs, epochs, activations, loss, eta=0.01, batch_size=64):
         """
         Initializes the neural network using random weights and biases.
         Weights are intialized using Xavier initialization.
@@ -87,6 +118,7 @@ class NeuralNetwork:
         self.eta = eta
         self.batch_size = batch_size
         self.activation_types = activations
+        self.loss = loss
 
         # Check for valid input dimensions
         input_dimensions = self.inputs.shape
@@ -118,16 +150,21 @@ class NeuralNetwork:
                 self.biases.append(np.zeros((layers[index + 1], 1)).T) 
 
         # Check for correct number of activation functions
-        if len(activations) != self.n_layers - 1:
+        if len(self.activation_types) != self.n_layers - 1:
             raise ValueError(
-                f"Incorrect number of activation functions specficied: expected {self.n_layers - 1}, got {len(activations)}"
+                f"Incorrect number of activation functions specficied: expected {self.n_layers - 1}, got {len(self.activation_types)}"
             )
 
         # Check for valid activation functions
-        for activation in activations:
+        for activation in self.activation_types:
             if activation not in ACTIVATION_FUNCTIONS:
                 raise Exception(f"Unknown activation function {activation}")
         self.activations = [ACTIVATION_FUNCTIONS[activation]() for activation in self.activation_types]
+
+        # Check for valid loss function
+        if self.loss not in LOSS_FUNCTIONS:
+            raise(Exception(f"Unknow loss function {self.loss}"))
+        self.loss_function = LOSS_FUNCTIONS[self.loss]()
 
     def feed_forward(self):
         """
@@ -193,7 +230,7 @@ class NeuralNetwork:
         -------
             Squared error of the prediction
         """
-        return np.sum((y_hat - y) ** 2, axis=1)
+        return self.loss_function.loss(y_hat, y)
 
     def cost_derivative(self, y_hat, y):
         """
@@ -210,7 +247,7 @@ class NeuralNetwork:
         -------
             Derivative of the cost function
         """
-        return 2 * (y_hat - y)
+        return self.loss_function.derivative(y_hat, y)
 
     def back_propagation(self, inputs, outputs):
         """
@@ -276,7 +313,7 @@ class NeuralNetwork:
         callback: function
             Function to run after every fifth epoch
         """
-        loss = self.cost_function(self.feed_forward()[-1], self.outputs).mean()
+        loss = np.mean(self.cost_function(self.feed_forward()[-1], self.outputs), axis=0)[0]
         print(f"Epoch 0, loss: {loss}")
         for epoch in range(1, self.epochs + 1):
             # Combine input and output data
@@ -289,12 +326,12 @@ class NeuralNetwork:
                 self.gradient_descent(inputs, outputs, self.eta)
 
             # Calculate loss
-            loss = np.mean(self.cost_function(self.feed_forward()[-1], self.outputs), axis=0)
+            loss = np.mean(self.cost_function(self.feed_forward()[-1], self.outputs), axis=0)[0]
 
             if epoch % 100 == 0:
                 print(f"Epoch: {epoch} - loss: {loss}")
 
-            if callback is not None and epoch % 5 == 0:
+            if callback is not None and self.epochs == epoch: #epoch % 5 == 0:
                 callback(self, epoch, loss)
 
     def predict(self, inputs):
